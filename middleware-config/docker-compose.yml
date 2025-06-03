@@ -1,0 +1,30 @@
+services:
+  rabbitmq:
+    container_name: rabbitmq
+    image: rabbitmq:4-management
+    ports:
+      - 5672:5672
+      - 15672:15672
+    restart: unless-stopped
+
+  postgres:
+    container_name: postgres
+    image: postgres:15
+    hostname: postgres
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: bd1
+    ports:
+      - 5432:5432
+    restart: unless-stopped
+
+  mariadb:
+    container_name: mariadb
+    image: mariadb:10.11
+    hostname: mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: bd2
+    ports:
+      - 3306:3306
+    restart: unless-stopped
