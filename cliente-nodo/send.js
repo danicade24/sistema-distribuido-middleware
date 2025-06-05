@@ -19,7 +19,7 @@ async function main() {
     : [];
 
     // conectar con RabbitMq
-    const connection = await amqp.connect('amqp://guest:guest@localhost:5672');
+    const connection = await amqp.connect('amqp://guest:guest@rabbitmq:5672');
     const channel = await connection.createChannel();
 
     // garantizar que la cola exista y enviar mensaje persistente 

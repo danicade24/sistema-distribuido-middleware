@@ -1,76 +1,91 @@
 import json
+import time
 import pika
 import psycopg2
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from psycopg2 import OperationalError
 
-# 1. Conexión a PostgreSQL (BD1)
-pg_conn = psycopg2.connect(
-    dbname="bd1",
-    user="postgres",
-    password="postgres",
-    host="localhost",
-    port=5432
-)
-pg_conn.autocommit = True
+# Reintento para PostgreSQL
+pg_conn = None
+for i in range(15):
+    try:
+        pg_conn = psycopg2.connect(
+            dbname="bd1",
+            user="user",
+            password="pass",
+            host="bd1",
+            port=5432
+        )
+        print("Conectado a PostgreSQL")
+        break
+    except OperationalError as e:
+        print(f"[PostgreSQL] Intento {i+1}/15 fallido: {e}")
+        time.sleep(5)
+else:
+    raise RuntimeError("No se pudo conectar a PostgreSQL")
+
+# Reintento para RabbitMQ
+rabbit_conn = None
+for i in range(15):
+    try:
+        rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters('rabbitmq'))
+        print("Conectado a RabbitMQ")
+        break
+    except pika.exceptions.AMQPConnectionError as e:
+        print(f"[RabbitMQ] Intento {i+1}/15 fallido: {e}")
+        time.sleep(5)
+else:
+    raise RuntimeError("No se pudo conectar a RabbitMQ")
 
 # Función que guarda un usuario en la tabla 'usuarios'
 def guardar_usuario(data):
-    # Extraer campos del JSON
-    nombre   = data.get("nombre")
-    correo   = data.get("correo")
-    clave    = data.get("clave")
-    dni      = data.get("dni")
-    telefono = data.get("telefono")
-    amigos   = data.get("amigos", [])  # lista de IDs (strings)
-
-    # Convertir cada amigo a int, filtrar no-numéricos
     try:
-        amigos_int = [int(a) for a in amigos if a.isdigit()]
-    except Exception:
-        amigos_int = []
+        nombre   = data.get("nombre")
+        correo   = data.get("correo")
+        clave    = data.get("clave")
+        dni      = data.get("dni")
+        telefono = data.get("telefono")
+        amigos   = data.get("amigos", [])
 
-    with pg_conn.cursor() as cur:
-        # 2. Validar cuáles amigos existen en BD1
-        if amigos_int:
+        try:
+            amigos_int = [int(a) for a in amigos if a.isdigit()]
+        except Exception:
+            amigos_int = []
+
+        with pg_conn.cursor() as cur:
+            if amigos_int:
+                cur.execute(
+                    "SELECT id FROM usuarios WHERE id = ANY(%s)",
+                    (amigos_int,)
+                )
+                validos = [row[0] for row in cur.fetchall()]
+            else:
+                validos = []
+
             cur.execute(
-                "SELECT id FROM usuarios WHERE id = ANY(%s)",
-                (amigos_int,)
+                """
+                INSERT INTO usuarios (nombre, correo, clave, dni, telefono, amigos)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (nombre, correo, clave, dni, telefono, validos)
             )
-            validos = [row[0] for row in cur.fetchall()]
-        else:
-            validos = []
+            pg_conn.commit()
+        print(f"Guardado usuario {dni} (amigos válidos={len(validos)})")
+    except Exception as e:
+        print(f"Error al guardar usuario {data.get('dni')}: {e}")
 
-        # 3. Insertar en la tabla usuarios
-        cur.execute(
-            """
-            INSERT INTO usuarios (nombre, correo, clave, dni, telefono, amigos)
-            VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-            (nombre, correo, clave, dni, telefono, validos)
-        )
-    print(f"Guardado usuario {dni} (amigos válidos={len(validos)})")
-
-# 4. Callback para consumir mensajes de RabbitMQ
+# Callback para consumir mensajes
 def callback(ch, method, properties, body):
     data = json.loads(body)
-    # Envío asíncrono a un pool de hilos para no bloquear el consumidor
-    executor.submit(guardar_usuario, data)
+    hilo = threading.Thread(target=guardar_usuario, args=(data,))
+    hilo.start()
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
-# 5. Configura ThreadPool (para concurrencia)
-executor = ThreadPoolExecutor(max_workers=8)
-
-# 6. Conexión a RabbitMQ y declaración de cola
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-channel = connection.channel()
+# RabbitMQ consumer
+channel = rabbit_conn.channel()
 channel.queue_declare(queue='validar_guardar_usuario', durable=True)
-
-# Limitar cuántos mensajes pendientes puede tener el consumidor
 channel.basic_qos(prefetch_count=10)
-channel.basic_consume(
-    queue='validar_guardar_usuario',
-    on_message_callback=callback
-)
+channel.basic_consume(queue='validar_guardar_usuario', on_message_callback=callback)
 
 print("Servicio BD1 escuchando...")
 channel.start_consuming()
