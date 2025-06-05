@@ -23,3 +23,5 @@ servicio-bd2-java/validador-dni/target/
 *.zip
 *.tar
 *.tar.gz
+
+/dos
