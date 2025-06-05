@@ -2,6 +2,7 @@ version: '3.9'
 services:
   rabbitmq:
     image: rabbitmq:3.9-management
+    container_name: rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -11,6 +12,7 @@ services:
 
   bd1:
     image: postgres:15
+    container_name: postgres
     environment:
       POSTGRES_DB: bd1
       POSTGRES_USER: user
@@ -22,6 +24,7 @@ services:
 
   bd2:
     image: mariadb:10.11
+    container_name: mariadb
     environment:
       MARIADB_DATABASE: bd2
       MARIADB_ROOT_PASSWORD: root
@@ -29,8 +32,11 @@ services:
       - ../sql/bd2_mariadb.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
       - "3306:3306"
+    networks:
+      - default
 
   cliente:
+    container_name: cliente
     build:
       context: ../cliente-nodo
     depends_on:
@@ -46,6 +52,7 @@ services:
     stdin_open: true
 
   servicio_bd1:
+    container_name: service-bd1
     build:
       context: ../servicio-bd1-python
     depends_on:
@@ -53,6 +60,7 @@ services:
       - bd1
 
   servicio_bd2:
+    container_name: service-bd2
     build:
       context: ../servicio-bd2-java
     depends_on:
