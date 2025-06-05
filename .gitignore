@@ -1,0 +1,25 @@
+# Node.js
+cliente-nodo/node_modules/
+middleware-config/node_modules/
+
+# Python
+servicio-bd1-python/venv/
+__pycache__/
+*.pyc
+
+# Java
+servicio-bd2-java/validador-dni/target/
+*.class
+
+# Archivos del sistema / IDE
+.DS_Store
+*.log
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Otros
+*.zip
+*.tar
+*.tar.gz
