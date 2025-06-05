@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   rabbitmq:
     image: rabbitmq:3.9-management
@@ -34,13 +33,6 @@ services:
       - "3306:3306"
     networks:
       - default
-
-  cliente:
-    container_name: cliente
-    build:
-      context: ../cliente-nodo
-    depends_on:
-      - rabbitmq
     
   cliente-simulador:
     build:
@@ -58,6 +50,7 @@ services:
     depends_on:
       - rabbitmq
       - bd1
+    command: python consumer_bd1.py
 
   servicio_bd2:
     container_name: service-bd2
