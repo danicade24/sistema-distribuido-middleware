@@ -35,6 +35,15 @@ services:
       context: ../cliente-nodo
     depends_on:
       - rabbitmq
+    
+  cliente-simulador:
+    build:
+      context: ../cliente-nodo
+    container_name: cliente-simulador
+    depends_on:
+      - rabbitmq
+    tty: true
+    stdin_open: true
 
   servicio_bd1:
     build:
